@@ -1,0 +1,36 @@
+
+sdf
+dsf
+ds
+f
+dsf
+f
+from collections import defaultdict
+
+def mapper(text):
+    words = text.split()
+    for word in words:
+        print "%s\t1" % word
+
+def reducer():
+    word_counts = defaultdict(int)
+    with open("mapped_output.txt", "r") as file:
+        for line in file:
+            word, count = line.strip().split("\t")
+            word_counts[word] += int(count)
+    
+    for word, count in word_counts.items():
+        print "%s\t%d" % (word, count)
+
+# Take input from file
+with open("input.txt", "r") as file:
+    text = file.read()
+
+# Run mapper
+with open("mapped_output.txt", "w") as output:
+    words = text.split()
+    for word in words:
+        output.write("%s\t1\n" % word)
+
+# Run reducer
+reducer()
