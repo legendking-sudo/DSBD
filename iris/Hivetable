@@ -1,0 +1,115 @@
+create database mydb11;
+
+use mydb11;
+
+create table flight (fno int, year int, dest varchar(10), delay float);
+
+alter table flight rename to air_flight;
+
+alter table air_flight add columns (source varchar(10));
+
+alter table air_flight change source src varchar(15);
+
+drop table flight;
+
+desc air_flight;
+
+create table flight (
+    fno int,
+    year int,
+    dest varchar(10),
+    delay float
+) row format delimited
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+insert into flight values (201, 2010, "chennai", 45.0);
+
+insert into flight values (202, 2011, "bangalore", 25.5);
+
+insert into flight values (203, 2012, "hyderabad", 35.0);
+
+select * from flight;
+
+load data local inpath "fl.txt"
+overwrite into table flight;
+
+select * from flight;
+
+create table nflight (
+    fno int,
+    year int,
+    source varchar(15)
+) row format delimited
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+insert into nflight values (201, 2010, "kolkata");
+
+insert into nflight values (202, 2011, "jaipur");
+
+insert into nflight values (203, 2012, "lucknow");
+
+insert into nflight values (204, 2013, "bhopal");
+
+select * from flight;
+
+select * from nflight;
+
+select a.fno, a.year, a.dest, a.delay, b.source
+from flight a
+join nflight b
+on (a.fno = b.fno);
+
+create index flight_index
+on table flight(fno)
+as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler'
+WITH DEFERRED REBUILD;
+
+show tables;
+
+select avg(delay)
+from flight
+where year = 2010;
+
+CREATE external Table ext_flight (
+    fno int,
+    year int,
+    dest varchar(20),
+    delay float
+) STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES(
+    "hbase.columns.mapping"=":key,cf:year,cf:dest,cf:delay"
+)
+TBLPROPERTIES("hbase.table.name"="table1");
+
+insert into ext_flight values (204, 2013, "kochi", 50.0);
+
+insert into ext_flight values (205, 2014, "amritsar", 40.5);
+
+insert into ext_flight values (206, 2015, "surat", 30.5);
+
+select * from ext_flight;
+
+
+
+
+
+
+
+
+
+
+
+hbase shell
+
+create 'table1', 'cf'
+
+scan 'table1'
+
+
+
+
+
