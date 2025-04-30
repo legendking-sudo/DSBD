@@ -1,7 +1,7 @@
 package wordcount;
 
 import java.io.IOException;
-import java.util.StringTokenizer;
+import java.util.regex.*;
 import java.util.*;
 
 import org.apache.hadoop.conf.Configuration;
@@ -15,13 +15,16 @@ public class wordcount {
 
   public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable> {
     private final static IntWritable one = new IntWritable(1);
-    private Text word = new Text();
+    private Text resource = new Text();
+
+    private static final Pattern logPattern = Pattern.compile("\"(GET|POST) ([^ ]+) HTTP/");
 
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-      StringTokenizer itr = new StringTokenizer(value.toString());
-      while (itr.hasMoreTokens()) {
-        word.set(itr.nextToken());
-        context.write(word, one);
+      Matcher matcher = logPattern.matcher(value.toString());
+      if (matcher.find()) {
+        String path = matcher.group(2); // Extracted path
+        resource.set(path);
+        context.write(resource, one);
       }
     }
   }
@@ -32,26 +35,23 @@ public class wordcount {
     public void reduce(Text key, Iterable<IntWritable> values, Context context)
         throws IOException, InterruptedException {
       int sum = 0;
-      for (IntWritable val : values) {
-        sum += val.get();
-      }
+      for (IntWritable val : values) sum += val.get();
       countMap.put(key.toString(), sum);
     }
 
     @Override
     protected void cleanup(Context context) throws IOException, InterruptedException {
       List<Map.Entry<String, Integer>> sorted = new ArrayList<>(countMap.entrySet());
-      sorted.sort((a, b) -> b.getValue().compareTo(a.getValue())); // Descending
+      sorted.sort((a, b) -> b.getValue() - a.getValue()); // Descending
 
-      for (Map.Entry<String, Integer> entry : sorted) {
+      for (Map.Entry<String, Integer> entry : sorted)
         context.write(new IntWritable(entry.getValue()), new Text(entry.getKey()));
-      }
     }
   }
 
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
-    Job job = Job.getInstance(conf, "word count");
+    Job job = Job.getInstance(conf, "resource access count");
     job.setJarByClass(wordcount.class);
     job.setMapperClass(TokenizerMapper.class);
     job.setReducerClass(IntSumReducer.class);
