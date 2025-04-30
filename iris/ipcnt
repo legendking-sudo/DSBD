@@ -1,71 +1,71 @@
-package wordcount1;
+package WordCount;
 
 import java.io.IOException;
-import java.util.regex.*;
-import java.util.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-public class wordcount1 {
+public class WordCount {
 
-  public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable> {
+  public static class TokenizerMapper
+       extends Mapper<Object, Text, Text, IntWritable>{
+
     private final static IntWritable one = new IntWritable(1);
-    private Text resource = new Text();
-    private static final Pattern logPattern = Pattern.compile("\"(GET|POST) ([^ ]+) HTTP/");
+    private Text word = new Text();
 
-    public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-      Matcher matcher = logPattern.matcher(value.toString());
-      if (matcher.find()) {
-        String path = matcher.group(2);
-        resource.set(path);
-        context.write(resource, one);
-      }
+    public void map(Object key, Text value, Context context
+                    ) throws IOException, InterruptedException {
+    
+      String[] tokens = value.toString().split(" ");
+      String ipAddress = tokens[0];
+      word.set(ipAddress);
+      context.write(word, one);
     }
   }
 
-  public static class IntSumReducer extends Reducer<Text, IntWritable, IntWritable, Text> {
-    private Map<String, Integer> countMap = new HashMap<String, Integer>();
+  public static class MaxFrequencyReducer
+       extends Reducer<Text, IntWritable, Text, IntWritable> {
+    private Text maxIp = new Text();
+    private IntWritable maxCount = new IntWritable(0);
 
-    public void reduce(Text key, Iterable<IntWritable> values, Context context)
-        throws IOException, InterruptedException {
+    public void reduce(Text key, Iterable<IntWritable> values,
+                       Context context
+                       ) throws IOException, InterruptedException {
       int sum = 0;
       for (IntWritable val : values) {
         sum += val.get();
       }
-      countMap.put(key.toString(), sum);
+      
+      // Check if the current IP's count is greater than the current maximum
+      if (sum > maxCount.get()) {
+        maxCount.set(sum);
+        maxIp.set(key);
+      }
     }
 
     @Override
     protected void cleanup(Context context) throws IOException, InterruptedException {
-      List<Map.Entry<String, Integer>> entryList = new ArrayList<Map.Entry<String, Integer>>(countMap.entrySet());
-
-      Collections.sort(entryList, new Comparator<Map.Entry<String, Integer>>() {
-        public int compare(Map.Entry<String, Integer> e1, Map.Entry<String, Integer> e2) {
-          return e2.getValue().compareTo(e1.getValue()); // descending
-        }
-      });
-
-      for (Map.Entry<String, Integer> entry : entryList) {
-        context.write(new IntWritable(entry.getValue()), new Text(entry.getKey()));
-      }
+      // Write the IP with the maximum count to the output
+      context.write(maxIp, maxCount);
     }
   }
 
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
-    Job job = Job.getInstance(conf, "resource access count");
-    job.setJarByClass(wordcount1.class);
+    Job job = Job.getInstance(conf, "word count");
+    job.setJarByClass(WordCount.class);
     job.setMapperClass(TokenizerMapper.class);
-    job.setReducerClass(IntSumReducer.class);
-    job.setMapOutputKeyClass(Text.class);
-    job.setMapOutputValueClass(IntWritable.class);
-    job.setOutputKeyClass(IntWritable.class);
-    job.setOutputValueClass(Text.class);
+    job.setCombinerClass(MaxFrequencyReducer.class);
+    job.setReducerClass(MaxFrequencyReducer.class);
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(IntWritable.class);
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
     System.exit(job.waitForCompletion(true) ? 0 : 1);
